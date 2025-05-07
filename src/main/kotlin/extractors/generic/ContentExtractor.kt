@@ -2,26 +2,28 @@ package notiq.kleos.extractors.generic
 
 import com.fleeksoft.ksoup.nodes.Document
 import com.fleeksoft.ksoup.nodes.Element
-import com.fleeksoft.ksoup.nodes.Node
 import notiq.kleos.extractors.Extractor
 
-private val CONTENT_SELECTORS = listOf(
+private val DEFAULT_CONTENT_SELECTORS = listOf(
     ".article-body", ".entry-content", "article", ".post-content",
     ".post-body", ".content", "#article", "#content", "#main-content"
 )
 
-private const val CONTENT_MIN_LENGTH = 200
+private const val DEFAULT_CONTENT_MIN_LENGTH = 200
 
-class ContentExtractor : Extractor {
+class ContentExtractor(
+    private val contentSelectors: List<String> = DEFAULT_CONTENT_SELECTORS,
+    private val contentMinLength: Int = DEFAULT_CONTENT_MIN_LENGTH
+) : Extractor {
 
     override fun extract(doc: Document): String? {
-        for (selector in CONTENT_SELECTORS) {
+        for (selector in contentSelectors) {
             val container = doc.selectFirst(selector) ?: continue
 
             val markdown = container.children()
                 .joinToString("\n\n") { convertToMarkdown(it).trim() }
 
-            if (markdown.trim().length >= CONTENT_MIN_LENGTH) {
+            if (markdown.trim().length >= contentMinLength) {
                 return markdown.trim()
             }
         }
@@ -61,10 +63,8 @@ class ContentExtractor : Extractor {
                 val text = childrenMarkdown.trim()
                 if (href.isNotEmpty()) "[$text]($href)" else text
             }
-            "strong" -> "**$childrenMarkdown**"
-            "b" -> "**$childrenMarkdown**"
-            "em" -> "*$childrenMarkdown*"
-            "i" -> "*$childrenMarkdown*"
+            "strong", "b" -> "**$childrenMarkdown**"
+            "em", "i" -> "*$childrenMarkdown*"
             "img" -> {
                 val src = element.attr("src").trim()
                 val alt = element.attr("alt").trim()

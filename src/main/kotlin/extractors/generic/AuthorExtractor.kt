@@ -2,16 +2,17 @@ package notiq.kleos.extractors.generic
 
 import com.fleeksoft.ksoup.nodes.Document
 import notiq.kleos.extractors.Extractor
-import notiq.kleos.cleaners.CleanAuthor
+import notiq.kleos.cleaners.Cleaner
+import notiq.kleos.cleaners.applyCleaners
 
-private val AUTHOR_META_TAGS = listOf(
+private const val AUTHOR_MAX_LENGTH = 300
+
+private val DEFAULT_META_TAGS = listOf(
     "byl", "clmst", "dc.author", "dcsext.author",
     "dc.creator", "rbauthors", "authors"
 )
 
-private const val AUTHOR_MAX_LENGTH = 300
-
-private val AUTHOR_SELECTORS = listOf(
+private val DEFAULT_SELECTORS = listOf(
     ".entry .entry-author", ".author.vcard .fn", ".author .vcard .fn",
     ".byline.vcard .fn", ".byline .vcard .fn", ".byline .by .author",
     ".byline .by", ".byline .author", ".post-author.vcard",
@@ -21,37 +22,40 @@ private val AUTHOR_SELECTORS = listOf(
     ".author", ".articleauthor", ".ArticleAuthor", ".byline"
 )
 
-private val BYLINE_SELECTORS_RE = listOf(
+private val DEFAULT_BYLINE_REGEX_SELECTORS = listOf(
     "#byline" to Regex("""^\s*By""", RegexOption.IGNORE_CASE),
     ".byline" to Regex("""^\s*By""", RegexOption.IGNORE_CASE)
 )
 
-class AuthorExtractor : Extractor {
-
-    private val cleaner = CleanAuthor()
+class AuthorExtractor(
+    private val metaTags: List<String> = DEFAULT_META_TAGS,
+    private val cssSelectors: List<String> = DEFAULT_SELECTORS,
+    private val regexSelectors: List<Pair<String, Regex>> = DEFAULT_BYLINE_REGEX_SELECTORS,
+    private val cleaners: List<Cleaner> = emptyList()
+) : Extractor {
 
     override fun extract(doc: Document): String? {
-        for (metaName in AUTHOR_META_TAGS) {
+        for (metaName in metaTags) {
             val meta = doc.selectFirst("meta[name=$metaName]") ?: continue
             val content = meta.attr("content")?.trim()
             if (!content.isNullOrEmpty() && content.length < AUTHOR_MAX_LENGTH) {
-                return cleaner.clean(content)
+                return applyCleaners(content, cleaners)
             }
         }
 
-        for (selector in AUTHOR_SELECTORS) {
+        for (selector in cssSelectors) {
             val element = doc.selectFirst(selector) ?: continue
             val text = element.text().trim()
             if (text.isNotEmpty() && text.length < AUTHOR_MAX_LENGTH) {
-                return cleaner.clean(text)
+                return applyCleaners(text, cleaners)
             }
         }
 
-        for ((selector, regex) in BYLINE_SELECTORS_RE) {
+        for ((selector, regex) in regexSelectors) {
             val element = doc.selectFirst(selector) ?: continue
             val text = element.text().trim()
             if (regex.containsMatchIn(text)) {
-                return cleaner.clean(text)
+                return applyCleaners(text, cleaners)
             }
         }
 
